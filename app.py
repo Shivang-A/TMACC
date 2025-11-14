@@ -449,13 +449,32 @@ for year in TARGET_YEARS:
 cols = st.columns(len(TARGET_YEARS))
 for col, year in zip(cols, TARGET_YEARS):
     with col:
+        value_mC = mas_metrics[year]
+        value_C = value_mC / 1000
+        
+        # Format the display value intelligently
+        if value_mC >= 10.0:
+            display_value = f"{value_mC:.2f}"
+            unit_text = "m°C"
+        elif value_mC >= 1.0:
+            display_value = f"{value_mC:.3f}"
+            unit_text = "m°C"
+        elif value_mC >= 0.001:
+            # Show in microC for very small values
+            display_value = f"{value_mC * 1000:.2f}"
+            unit_text = "μ°C"
+        else:
+            # Use scientific notation for extremely small values
+            display_value = f"{value_mC:.2e}"
+            unit_text = "m°C"
+        
         st.markdown(
             f"""
             <div class="metric-container">
-                <div class="metric-value">{mas_metrics[year]:.2f}</div>
-                <div class="metric-label">m°C avoided by {year}</div>
+                <div class="metric-value">{display_value} <span style="font-size: 1.5rem;">{unit_text}</span></div>
+                <div class="metric-label">Temperature avoided by {year}</div>
                 <div style="font-size: 0.85rem; color: #616161; margin-top: 0.5rem;">
-                    ({mas_metrics[year]/1000:.5f} °C)
+                    ({value_C:.6f} °C or {value_C*1e6:.2f} μ°C)
                 </div>
             </div>
             """,
@@ -495,12 +514,22 @@ with col1:
     g1_vals = [mas_by_sector_year.get(s, 0.0) for s in g1_sectors]
     g1_colors = [get_sector_color(s) for s in g1_sectors]
     
+    # Format labels: only show for values > 1.0 m°C
+    text_labels = []
+    for v in g1_vals:
+        if v >= 1.0:
+            text_labels.append(f"{v:.2f}")
+        elif v >= 0.01:
+            text_labels.append(f"{v:.3f}")
+        else:
+            text_labels.append("")  # Don't show label for very small values
+    
     fig_g1 = go.Figure(data=[
         go.Bar(
             x=g1_sectors,
             y=g1_vals,
             marker_color=g1_colors,
-            text=[f"{v:.2f}" if v >= 0.01 else f"{v:.3f}" for v in g1_vals],
+            text=text_labels,
             textposition='outside',
             hovertemplate='<b>%{x}</b><br>ΔT: %{y:.3f} m°C<br>(%{customdata:.6f} °C)<extra></extra>',
             customdata=[v/1000 for v in g1_vals]
@@ -642,13 +671,23 @@ with tab1:
         
         customdata = [[v/1000] for v in vals]
         
+        # Smart text labels: only show for meaningful values
+        text_labels = []
+        for v in vals:
+            if v >= 1.0:
+                text_labels.append(f"{v:.2f}")
+            elif v >= 0.01:
+                text_labels.append(f"{v:.3f}")
+            else:
+                text_labels.append("")  # Hide very small values
+        
         fig_g2.add_trace(
             go.Bar(
                 x=scen_list,
                 y=vals,
                 marker_color=colors,
                 showlegend=False,
-                text=[f"{v:.2f}" if v >= 0.01 else f"{v:.3f}" for v in vals],
+                text=text_labels,
                 textposition='outside',
                 hovertemplate='<b>%{x}</b><br>ΔT: %{y:.3f} m°C<br>(%{customdata[0]:.6f} °C)<extra></extra>',
                 customdata=customdata
