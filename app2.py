@@ -1,3 +1,6 @@
+# Requirements: streamlit, pandas, numpy, plotly
+# Add to requirements.txt: plotly>=5.0.0
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -39,41 +42,52 @@ st.markdown(
         margin-top: 2rem;
         margin-bottom: 1rem;
         padding-bottom: 0.5rem;
-        border-bottom: 3px solid #a8d5ba;
+        border-bottom: 3px solid #7eb899;
     }
     
     /* Metric boxes */
     .metric-container {
-        background: linear-gradient(135deg, #e8f5e9 0%, #f1f8f4 100%);
+        background: linear-gradient(135deg, #d4edda 0%, #e8f5e9 100%);
         padding: 1.5rem;
         border-radius: 12px;
-        border-left: 5px solid #66bb6a;
+        border-left: 5px solid #4caf50;
         margin: 1rem 0;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
     
     .metric-value {
         font-size: 2.5rem;
         font-weight: 700;
-        color: #2e7d32;
+        color: #1b5e20;
         margin: 0;
     }
     
     .metric-label {
         font-size: 1rem;
-        color: #546e7a;
+        color: #424242;
         margin-top: 0.5rem;
     }
     
     /* Info box */
     .info-box {
-        background: #fff8e1;
+        background: #fff3cd;
         padding: 1rem;
         border-radius: 8px;
         border-left: 4px solid #ffc107;
         margin: 1rem 0;
         font-size: 0.95rem;
         color: #5d4037;
+    }
+    
+    .unit-explanation {
+        background: #e3f2fd;
+        padding: 1.2rem;
+        border-radius: 8px;
+        border-left: 4px solid #2196f3;
+        margin: 1rem 0;
+        font-size: 0.95rem;
+        color: #01579b;
+        line-height: 1.6;
     }
     
     /* Sidebar styling */
@@ -95,6 +109,11 @@ st.markdown(
     .block-container {
         padding-top: 2rem;
     }
+    
+    /* Button styling */
+    .stButton > button {
+        width: 100%;
+    }
 </style>
 """,
     unsafe_allow_html=True,
@@ -104,7 +123,7 @@ st.markdown(
 # 3) PHYSICS CONFIG – TMACC-style CH4 → ΔT
 # --------------------------------------------------
 
-TARGET_YEARS = [2030, 2040, 2047]
+TARGET_YEARS = [2040, 2047]  # Only two meaningful years
 BAU_SCENARIO_NAME = "BAU"
 
 # AGTP kernel for CH4 (degC per kg emitted) at different lags
@@ -124,14 +143,14 @@ INDIRECT_FACTOR_CH4 = 1.75
 INCLUDE_CLIMATE_INERTIA = True
 TAU_CLIMATE = 10.0  # years
 
-# Pastel color palette
+# Darker pastel color palette
 PASTEL_COLORS = {
-    "Transport":   "#a8d5e2",  # Light blue
-    "Waste":       "#ffd8a8",  # Light orange
-    "Industry":    "#a8e6cf",  # Light green
-    "Livestock":   "#ffa8a8",  # Light red
-    "Agriculture": "#d4a8e4",  # Light purple
-    "Residential": "#c9b8a8",  # Light brown
+    "Transport":   "#7fb3d5",  # Darker light blue
+    "Waste":       "#f4b183",  # Darker light orange
+    "Industry":    "#77c4a1",  # Darker light green
+    "Livestock":   "#e57373",  # Darker light red
+    "Agriculture": "#ba68c8",  # Darker light purple
+    "Residential": "#a1887f",  # Darker light brown
 }
 
 def interp_agtp_ch4(lag_years: float) -> float:
@@ -300,11 +319,33 @@ def compute_mas_sector_contrib(df_sectors: pd.DataFrame, year: int, sector_max_a
             & (df_sectors["TargetYear"] == year)
             & (df_sectors["Scenario"].isin(alt_list))
         ]
-        mas_val = sec_df["DeltaT_mK"].sum()
+        mas_val = sec_df["DeltaT_microC"].sum()
         mas_by_sector[sector_name] = mas_val
     
     mas_total = sum(mas_by_sector.values())
     return mas_by_sector, mas_total
+
+@st.cache_data
+def extract_mitigation_strategies(df: pd.DataFrame) -> dict:
+    """
+    Extract mitigation strategy descriptions for each sector and scenario.
+    Returns dict: {sector: {scenario: description}}
+    """
+    strategies = {}
+    
+    for sector in df["Sector"].unique():
+        strategies[sector] = {}
+        sector_df = df[df["Sector"] == sector]
+        
+        for scenario in sector_df["Scenario"].unique():
+            if scenario == BAU_SCENARIO_NAME:
+                continue
+            # Get the first non-null mitigation strategy for this sector-scenario combo
+            strategy = sector_df[sector_df["Scenario"] == scenario]["Mitigation Strategy"].iloc[0]
+            if pd.notna(strategy):
+                strategies[sector][scenario] = strategy
+    
+    return strategies
 
 # --------------------------------------------------
 # 6) SIDEBAR
@@ -322,12 +363,23 @@ with st.sidebar:
         help="Choose the state to analyze"
     )
 
-    year_choice = st.select_slider(
-        "Target Year",
+    st.markdown("**Target Year for Analysis:**")
+    
+    # Initialize session state for year if not exists
+    if 'year_choice' not in st.session_state:
+        st.session_state.year_choice = 2047
+    
+    # Radio button for single-click year selection
+    year_choice = st.radio(
+        "Select year:",
         options=TARGET_YEARS,
-        value=TARGET_YEARS[-1],
-        help="Select year for detailed analysis"
+        index=TARGET_YEARS.index(st.session_state.year_choice),
+        horizontal=True,
+        label_visibility="collapsed"
     )
+    
+    # Update session state
+    st.session_state.year_choice = year_choice
     
     st.markdown("---")
     st.markdown("### 📊 About")
@@ -354,9 +406,38 @@ st.title("🌡️ State Methane Mitigation – Temperature Impact Dashboard")
 st.markdown(
     """
     This dashboard quantifies the **global temperature reduction** achieved through state-level 
-    methane mitigation policies. Results show avoided warming in **milli-degrees Celsius (m°C)**, 
-    where 1 m°C = 0.001°C.
+    methane mitigation policies. Values are shown in **micro-degrees Celsius (μ°C)** with temperature in **°C**.
     """
+)
+
+# Unit explanation box
+st.markdown(
+    """
+    <div class="unit-explanation">
+        <strong>📏 Understanding Temperature Units</strong><br><br>
+        
+        <strong>Temperature scale:</strong> Degrees Celsius (°C)<br>
+        <strong>Value scale:</strong> We use two units depending on magnitude:<br>
+        
+        • <strong>m°C (milli-degrees Celsius)</strong> = 10<sup>-3</sup> °C = 0.001 °C<br>
+        &nbsp;&nbsp;&nbsp;Used for larger impacts (≥ 1 m°C)<br><br>
+        
+        • <strong>μ°C (micro-degrees Celsius)</strong> = 10<sup>-6</sup> °C = 0.000001 °C<br>
+        &nbsp;&nbsp;&nbsp;Used for smaller impacts (< 1 m°C)<br>
+        &nbsp;&nbsp;&nbsp;1000 μ°C = 1 m°C<br><br>
+        
+        <strong>Examples:</strong><br>
+        • 450.25 μ°C = 0.45025 m°C = 0.00045025 °C<br>
+        • 1200.50 μ°C = 1.20050 m°C = 0.00120050 °C<br><br>
+        
+        <strong>Context:</strong> While these values may seem small, they represent significant impacts when considering:<br>
+        • This is from <em>one state</em> in India, not the entire country or world<br>
+        • Global warming has increased by ~1.5°C since pre-industrial times<br>
+        • Every fraction of a degree matters for climate stability<br>
+        • Cumulative effects from all regions worldwide add up to substantial climate impacts
+    </div>
+    """,
+    unsafe_allow_html=True,
 )
 
 # --------------------------------------------------
@@ -381,6 +462,9 @@ with st.spinner("Loading and processing emissions data..."):
     df_emis = load_state_emissions(csv_path)
     deltaE = build_deltaE(df_emis)
     
+    # Extract mitigation strategies for later use
+    mitigation_strategies = extract_mitigation_strategies(df_emis)
+    
     # Compute ΔT for all target years
     all_results = []
     for y in TARGET_YEARS:
@@ -388,7 +472,8 @@ with st.spinner("Loading and processing emissions data..."):
         all_results.append(res_y)
     
     results = pd.concat(all_results, ignore_index=True)
-    results["DeltaT_mK"] = results["DeltaT_degC"] * 1000.0
+    # Convert to micro-degrees Celsius for display
+    results["DeltaT_microC"] = results["DeltaT_degC"] * 1e6
 
 # Separate total and sectoral results
 res_total = results[results["Sector"] == "ALL"].copy()
@@ -410,11 +495,18 @@ for year in TARGET_YEARS:
 cols = st.columns(len(TARGET_YEARS))
 for col, year in zip(cols, TARGET_YEARS):
     with col:
+        value_microC = mas_metrics[year]
+        value_C = value_microC / 1e6
+        value_mC = value_microC / 1000
+        
         st.markdown(
             f"""
             <div class="metric-container">
-                <div class="metric-value">{mas_metrics[year]:.2f}</div>
-                <div class="metric-label">m°C avoided by {year}</div>
+                <div class="metric-value">{value_microC:.2f} <span style="font-size: 1.5rem;">μ°C</span></div>
+                <div class="metric-label">Temperature avoided by {year}</div>
+                <div style="font-size: 0.85rem; color: #616161; margin-top: 0.5rem;">
+                    ({value_C:.6f} °C)
+                </div>
             </div>
             """,
             unsafe_allow_html=True
@@ -453,27 +545,38 @@ with col1:
     g1_vals = [mas_by_sector_year.get(s, 0.0) for s in g1_sectors]
     g1_colors = [get_sector_color(s) for s in g1_sectors]
     
+    # Format labels: only show for meaningful values
+    text_labels = []
+    for v in g1_vals:
+        if v >= 10.0:
+            text_labels.append(f"{v:.1f}")
+        elif v >= 1.0:
+            text_labels.append(f"{v:.2f}")
+        else:
+            text_labels.append("")  # Don't show label for very small values
+    
     fig_g1 = go.Figure(data=[
         go.Bar(
             x=g1_sectors,
             y=g1_vals,
             marker_color=g1_colors,
-            text=[f"{v:.2f}" for v in g1_vals],
+            text=text_labels,
             textposition='outside',
-            hovertemplate='<b>%{x}</b><br>ΔT: %{y:.3f} m°C<extra></extra>'
+            hovertemplate='<b>%{x}</b><br>%{y:.2f} μ°C<br>(%{customdata:.6f} °C)<extra></extra>',
+            customdata=[v/1e6 for v in g1_vals]
         )
     ])
     
     fig_g1.update_layout(
         title=f"Temperature Reduction by Sector ({year_choice})",
         xaxis_title="Sector",
-        yaxis_title="ΔT (m°C)",
-        height=400,
+        yaxis_title="ΔT (μ°C)",
+        height=450,
         showlegend=False,
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)',
         font=dict(size=11),
-        margin=dict(t=50, b=80, l=50, r=20)
+        margin=dict(t=60, b=100, l=60, r=30)
     )
     
     fig_g1.update_xaxes(tickangle=-45, gridcolor='lightgray', gridwidth=0.5)
@@ -505,7 +608,8 @@ with col2:
             name=sector_name,
             line=dict(width=2.5, color=get_sector_color(sector_name)),
             marker=dict(size=8),
-            hovertemplate=f'<b>{sector_name}</b><br>Year: %{{x}}<br>ΔT: %{{y:.3f}} m°C<extra></extra>'
+            hovertemplate=f'<b>{sector_name}</b><br>Year: %{{x}}<br>%{{y:.2f}} μ°C<br>(%{{customdata:.6f}} °C)<extra></extra>',
+            customdata=[v/1e6 for v in series]
         ))
     
     # Add total trace
@@ -514,21 +618,22 @@ with col2:
         y=mas_total_time,
         mode='lines+markers',
         name='Total',
-        line=dict(width=3.5, color='#2c3e50', dash='dash'),
+        line=dict(width=3.5, color='#1a1a1a', dash='dash'),
         marker=dict(size=10, symbol='diamond'),
-        hovertemplate='<b>Total MAS</b><br>Year: %{x}<br>ΔT: %{y:.3f} m°C<extra></extra>'
+        hovertemplate='<b>Total MAS</b><br>Year: %{x}<br>%{y:.2f} μ°C<br>(%{customdata:.6f} °C)<extra></extra>',
+        customdata=[v/1e6 for v in mas_total_time]
     ))
     
     fig_g6.update_layout(
         title="MAS Impact Timeline",
         xaxis_title="Year",
-        yaxis_title="ΔT (m°C)",
-        height=400,
+        yaxis_title="ΔT (μ°C)",
+        height=450,
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)',
         font=dict(size=11),
-        legend=dict(orientation="v", yanchor="top", y=0.99, xanchor="left", x=0.01),
-        margin=dict(t=50, b=50, l=50, r=20)
+        legend=dict(orientation="v", yanchor="top", y=0.99, xanchor="left", x=0.01, bgcolor='rgba(255,255,255,0.8)'),
+        margin=dict(t=60, b=60, l=60, r=30)
     )
     
     # Fix x-axis to show years as integers
@@ -542,6 +647,9 @@ with col2:
     fig_g6.update_yaxes(gridcolor='lightgray', gridwidth=0.5)
     
     st.plotly_chart(fig_g6, use_container_width=True)
+
+# Add more vertical space between rows
+st.markdown("<br><br><br>", unsafe_allow_html=True)
 
 # --------------------------------------------------
 # 11) DETAILED SECTOR ANALYSIS
@@ -568,8 +676,8 @@ with tab1:
         rows=n_rows,
         cols=n_cols,
         subplot_titles=list(sector_max_alts.keys()),
-        vertical_spacing=0.12,
-        horizontal_spacing=0.08
+        vertical_spacing=0.18,
+        horizontal_spacing=0.10
     )
     
     for idx, sector_name in enumerate(sector_max_alts.keys()):
@@ -584,13 +692,25 @@ with tab1:
         
         df_sec_year = df_sec_year.sort_values("Scenario")
         scen_list = df_sec_year["Scenario"].tolist()
-        vals = df_sec_year["DeltaT_mK"].values
+        vals = df_sec_year["DeltaT_microC"].values
         
         colors = [
             get_sector_color(sector_name) if scen in sector_max_alts[sector_name] 
-            else "#d0d0d0" 
+            else "#c0c0c0" 
             for scen in scen_list
         ]
+        
+        customdata = [[v/1e6] for v in vals]
+        
+        # Smart text labels: only show for meaningful values
+        text_labels = []
+        for v in vals:
+            if v >= 10.0:
+                text_labels.append(f"{v:.1f}")
+            elif v >= 1.0:
+                text_labels.append(f"{v:.2f}")
+            else:
+                text_labels.append("")  # Hide very small values
         
         fig_g2.add_trace(
             go.Bar(
@@ -598,14 +718,17 @@ with tab1:
                 y=vals,
                 marker_color=colors,
                 showlegend=False,
-                hovertemplate='<b>%{x}</b><br>ΔT: %{y:.3f} m°C<extra></extra>'
+                text=text_labels,
+                textposition='outside',
+                hovertemplate='<b>%{x}</b><br>%{y:.2f} μ°C<br>(%{customdata[0]:.6f} °C)<extra></extra>',
+                customdata=customdata
             ),
             row=row,
             col=col
         )
     
     fig_g2.update_layout(
-        height=300 * n_rows,
+        height=350 * n_rows,
         showlegend=False,
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)',
@@ -613,7 +736,7 @@ with tab1:
     )
     
     fig_g2.update_xaxes(tickangle=-45, gridcolor='lightgray', gridwidth=0.3)
-    fig_g2.update_yaxes(title_text="ΔT (m°C)", gridcolor='lightgray', gridwidth=0.3)
+    fig_g2.update_yaxes(title_text="ΔT (μ°C)", gridcolor='lightgray', gridwidth=0.3)
     
     st.plotly_chart(fig_g2, use_container_width=True)
 
@@ -628,8 +751,8 @@ with tab2:
         rows=n_rows,
         cols=n_cols,
         subplot_titles=list(sector_max_alts.keys()),
-        vertical_spacing=0.12,
-        horizontal_spacing=0.08
+        vertical_spacing=0.18,
+        horizontal_spacing=0.10
     )
     
     for idx, sector_name in enumerate(sector_max_alts.keys()):
@@ -645,24 +768,27 @@ with tab2:
             df_s = df_s.sort_values("TargetYear")
             is_mas = scen in sector_max_alts[sector_name]
             
+            customdata = [[v/1e6] for v in df_s["DeltaT_microC"].values]
+            
             fig_g4.add_trace(
                 go.Scatter(
                     x=df_s["TargetYear"],
-                    y=df_s["DeltaT_mK"],
+                    y=df_s["DeltaT_microC"],
                     mode='lines+markers',
                     name=scen,
                     line=dict(width=3 if is_mas else 1.5),
                     opacity=1.0 if is_mas else 0.6,
                     showlegend=(idx == 0),
                     legendgroup=scen,
-                    hovertemplate=f'<b>{scen}</b><br>Year: %{{x}}<br>ΔT: %{{y:.3f}} m°C<extra></extra>'
+                    hovertemplate=f'<b>{scen}</b><br>Year: %{{x}}<br>%{{y:.2f}} μ°C<br>(%{{customdata[0]:.6f}} °C)<extra></extra>',
+                    customdata=customdata
                 ),
                 row=row,
                 col=col
             )
     
     fig_g4.update_layout(
-        height=300 * n_rows,
+        height=350 * n_rows,
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)',
         font=dict(size=10),
@@ -677,15 +803,19 @@ with tab2:
         gridcolor='lightgray',
         gridwidth=0.3
     )
-    fig_g4.update_yaxes(title_text="ΔT (m°C)", gridcolor='lightgray', gridwidth=0.3)
+    fig_g4.update_yaxes(title_text="ΔT (μ°C)", gridcolor='lightgray', gridwidth=0.3)
     
     st.plotly_chart(fig_g4, use_container_width=True)
 
 # --------------------------------------------------
-# 12) METHODOLOGY
+# 12) METHODOLOGY & SCENARIOS
 # --------------------------------------------------
 
-with st.expander("🔬 Methodology & Calculations"):
+st.markdown("## 📚 Additional Information")
+
+info_tab1, info_tab2 = st.tabs(["🔬 Methodology & Calculations", "📋 Mitigation Scenario Descriptions"])
+
+with info_tab1:
     st.markdown(
         """
         ### Temperature Calculation Methodology
@@ -709,23 +839,97 @@ with st.expander("🔬 Methodology & Calculations"):
         3. **AGTP Kernel**: Time-dependent temperature response per unit emission
            - Based on atmospheric lifetime and radiative forcing
            - Interpolated from scientific literature values
+           - Accounts for methane's short atmospheric lifetime (~12 years)
         
         4. **Indirect Effects**: Multiplier accounting for:
-           - Ozone formation
-           - Stratospheric water vapor
-           - CO₂ from methane oxidation
-           - Factor: 1.75×
+           - Ozone formation (increases warming)
+           - Stratospheric water vapor (increases warming)
+           - CO₂ from methane oxidation (long-term warming)
+           - **Combined Factor: 1.75×**
         
         5. **Climate Inertia**: Gradual climate system response
            ```
            inertia_factor = 1 - exp(-lag / τ)
            where τ = 10 years
            ```
+           This represents ocean heat uptake and delayed climate response.
+        
+        #### Unit Explanation:
+        
+        **Temperature values use two scales:**
+        
+        - **Value scale**: μ°C (micro-degrees Celsius) or m°C (milli-degrees Celsius)
+          - 1 μ°C = 10⁻⁶ °C = 0.000001 °C
+          - 1 m°C = 10⁻³ °C = 0.001 °C
+          - 1000 μ°C = 1 m°C
+        
+        - **Temperature scale**: °C (degrees Celsius)
+          - Standard temperature measurement
+          - Context: Global warming is ~1.5°C since pre-industrial era
+        
+        **Why such small values?**
+        - This represents impact from **one state** in India
+        - Must be aggregated with all other sources globally
+        - Even small reductions matter when cumulative effects are considered
+        - Methane is a potent but short-lived greenhouse gas
         
         #### Data Sources:
-        - State-level methane emissions by sector and year
-        - Multiple mitigation scenarios (ALT 1-4) compared to BAU
-        - Maximum Ambition Scenario (MAS) selects best alternatives per sector
+        - State-level methane emissions by sector and year (2030-2047)
+        - Business As Usual (BAU) baseline scenario
+        - Multiple alternative mitigation scenarios (ALT 1-4)
+        - Maximum Ambition Scenario (MAS) combines best alternatives
+        
+        #### Scientific References:
+        - AGTP values based on IPCC climate science literature
+        - Indirect effects factor includes feedback mechanisms
+        - Climate inertia represents thermal lag in ocean-atmosphere system
+        """
+    )
+
+with info_tab2:
+    st.markdown(f"### Mitigation Scenario Descriptions for {state}")
+    st.markdown("Each sector has multiple alternative (ALT) scenarios representing different mitigation strategies.")
+    
+    # Display mitigation strategies organized by sector
+    for sector_name in sorted(mitigation_strategies.keys()):
+        st.markdown(f"#### {sector_name}")
+        
+        scenarios_dict = mitigation_strategies[sector_name]
+        
+        if scenarios_dict:
+            # Create a nice table for each sector
+            scenario_data = []
+            for scenario in sorted(scenarios_dict.keys()):
+                description = scenarios_dict[scenario]
+                is_mas = scenario in sector_max_alts.get(sector_name, [])
+                
+                scenario_data.append({
+                    "Scenario": scenario,
+                    "Description": description,
+                    "In MAS": "✓" if is_mas else ""
+                })
+            
+            if scenario_data:
+                df_display = pd.DataFrame(scenario_data)
+                st.dataframe(
+                    df_display,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "Scenario": st.column_config.TextColumn("Scenario", width="small"),
+                        "Description": st.column_config.TextColumn("Mitigation Strategy", width="large"),
+                        "In MAS": st.column_config.TextColumn("MAS", width="small", help="Included in Maximum Ambition Scenario")
+                    }
+                )
+        else:
+            st.info("No alternative scenarios defined for this sector.")
+        
+        st.markdown("---")
+    
+    st.markdown(
+        """
+        **Note:** The Maximum Ambition Scenario (MAS) selects the most effective alternative 
+        scenarios from each sector to create the highest impact mitigation pathway.
         """
     )
 
