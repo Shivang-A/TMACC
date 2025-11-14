@@ -435,7 +435,7 @@ st.markdown(
         &nbsp;&nbsp;&nbsp;Used for larger impacts (≥ 1 m°C)<br><br>
         
         • <strong>μ°C (micro-degrees Celsius)</strong> = 10<sup>-6</sup> °C = 0.000001 °C<br>
-        &nbsp;&nbsp;&nbsp;Used for smaller impacts (< 1 m°C)<br>
+        &nbsp;&nbsp;&nbsp;Used for smaller impacts (&lt; 1 m°C)<br>
         &nbsp;&nbsp;&nbsp;1000 μ°C = 1 m°C<br><br>
         
         <strong>Examples:</strong><br>
@@ -449,7 +449,7 @@ st.markdown(
         • Cumulative effects from all regions worldwide add up to substantial climate impacts
     </div>
     """,
-    unsafe_allow_html=True,
+    unsafe_allow_html=True,   # ← THIS is the key bit
 )
 
 # --------------------------------------------------
