@@ -422,28 +422,16 @@ st.markdown(
     """
 )
 
-# Unit explanation box
 st.markdown(
     """
-<div class="unit-explanation">
-<strong>📏 Understanding Temperature Units</strong><br><br>
-<strong>Temperature scale:</strong> Degrees Celsius (°C)<br>
-<strong>Value scale:</strong> We use two units depending on magnitude:<br><br>
-&#8226; <strong>m°C (milli-degrees Celsius)</strong> = 10<sup>-3</sup> °C = 0.001 °C<br>
-&nbsp;&nbsp;&nbsp;Used for larger impacts (≥ 1 m°C)<br><br>
-&#8226; <strong>μ°C (micro-degrees Celsius)</strong> = 10<sup>-6</sup> °C = 0.000001 °C<br>
-&nbsp;&nbsp;&nbsp;Used for smaller impacts (&lt; 1 m°C)<br>
-&nbsp;&nbsp;&nbsp;1000 μ°C = 1 m°C<br><br>
-<strong>Examples:</strong><br>
-&#8226; 450.25 μ°C = 0.45025 m°C = 0.00045025 °C<br>
-&#8226; 1200.50 μ°C = 1.20050 m°C = 0.00120050 °C<br><br>
-<strong>Context:</strong> While these values may seem small, they represent significant impacts when considering:<br>
-&#8226; This is from <em>one state</em> in India, not the entire country or world<br>
-&#8226; Global warming has increased by ~1.5°C since pre-industrial times<br>
-&#8226; Every fraction of a degree matters for climate stability<br>
-&#8226; Cumulative effects from all regions worldwide add up to substantial climate impacts
-</div>
-""",
+    <div class="unit-explanation">
+        <strong>📏 Understanding Temperature Units</strong><br>
+        <strong>m°C (milli-degrees Celsius)</strong> = 10<sup>-3</sup> °C = 0.001 °C<br>
+        For example: <strong>120.50 m°C = 0.12050 °C</strong><br>
+        While these values may seem small, they represent significant global climate impacts when considering 
+        the cumulative effect of methane from multiple sources worldwide.
+    </div>
+    """,
     unsafe_allow_html=True,
 )
 
