@@ -425,31 +425,31 @@ st.markdown(
 # Unit explanation box
 st.markdown(
     """
-    <div class="unit-explanation">
-        <strong>📏 Understanding Temperature Units</strong><br><br>
-        
-        <strong>Temperature scale:</strong> Degrees Celsius (°C)<br>
-        <strong>Value scale:</strong> We use two units depending on magnitude:<br>
-        
-        • <strong>m°C (milli-degrees Celsius)</strong> = 10<sup>-3</sup> °C = 0.001 °C<br>
-        &nbsp;&nbsp;&nbsp;Used for larger impacts (≥ 1 m°C)<br><br>
-        
-        • <strong>μ°C (micro-degrees Celsius)</strong> = 10<sup>-6</sup> °C = 0.000001 °C<br>
-        &nbsp;&nbsp;&nbsp;Used for smaller impacts (&lt; 1 m°C)<br>
-        &nbsp;&nbsp;&nbsp;1000 μ°C = 1 m°C<br><br>
-        
-        <strong>Examples:</strong><br>
-        • 450.25 μ°C = 0.45025 m°C = 0.00045025 °C<br>
-        • 1200.50 μ°C = 1.20050 m°C = 0.00120050 °C<br><br>
-        
-        <strong>Context:</strong> While these values may seem small, they represent significant impacts when considering:<br>
-        • This is from <em>one state</em> in India, not the entire country or world<br>
-        • Global warming has increased by ~1.5°C since pre-industrial times<br>
-        • Every fraction of a degree matters for climate stability<br>
-        • Cumulative effects from all regions worldwide add up to substantial climate impacts
-    </div>
-    """,
-    unsafe_allow_html=True,   # ← THIS is the key bit
+<div class="unit-explanation">
+    <strong>📏 Understanding Temperature Units</strong><br><br>
+    
+    <strong>Temperature scale:</strong> Degrees Celsius (°C)<br>
+    <strong>Value scale:</strong> We use two units depending on magnitude:<br>
+    
+    • <strong>m°C (milli-degrees Celsius)</strong> = 10<sup>-3</sup> °C = 0.001 °C<br>
+    &nbsp;&nbsp;&nbsp;Used for larger impacts (≥ 1 m°C)<br><br>
+    
+    • <strong>μ°C (micro-degrees Celsius)</strong> = 10<sup>-6</sup> °C = 0.000001 °C<br>
+    &nbsp;&nbsp;&nbsp;Used for smaller impacts (&lt; 1 m°C)<br>
+    &nbsp;&nbsp;&nbsp;1000 μ°C = 1 m°C<br><br>
+    
+    <strong>Examples:</strong><br>
+    • 450.25 μ°C = 0.45025 m°C = 0.00045025 °C<br>
+    • 1200.50 μ°C = 1.20050 m°C = 0.00120050 °C<br><br>
+    
+    <strong>Context:</strong> While these values may seem small, they represent significant impacts when considering:<br>
+    • This is from <em>one state</em> in India, not the entire country or world<br>
+    • Global warming has increased by ~1.5°C since pre-industrial times<br>
+    • Every fraction of a degree matters for climate stability<br>
+    • Cumulative effects from all regions worldwide add up to substantial climate impacts
+</div>
+""",
+    unsafe_allow_html=True,
 )
 
 # --------------------------------------------------
