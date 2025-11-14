@@ -428,10 +428,11 @@ st.markdown(
         <strong>📏 Understanding Temperature Units</strong><br><br>
 
         <strong>Temperature scale:</strong> Degrees Celsius (°C)<br>
-        <strong>Value scale:</strong> We use <strong>μ°C</strong> (micro-degrees Celsius) because methane impacts from a single Indian state are very small.<br><br>
+        <strong>Value scale:</strong> We use <strong>μ°C</strong> (micro-degrees Celsius)
+        because methane impacts from a single Indian state are very small.<br><br>
 
         • <strong>μ°C (micro-degrees Celsius)</strong> = 10<sup>-6</sup> °C = 0.000001 °C<br>
-        &nbsp;&nbsp;&nbsp;This is one-millionth of a degree Celsius.<br><br>
+        This is one-millionth of a degree Celsius.<br><br>
 
         <strong>Examples:</strong><br>
         • 450.25 μ°C = 0.00045025 °C<br>
@@ -441,7 +442,7 @@ st.markdown(
         • These numbers come from <em>one state</em>, not all of India or the world.<br>
         • Global warming has increased by ~1.5°C since pre-industrial times.<br>
         • Even tiny changes matter when aggregated across all regions of the world.<br>
-        • Methane reductions have rapid climate benefits due to methane's short lifetime.<br>
+        • Methane reductions have rapid climate benefits due to methane’s short lifetime.<br>
     </div>
     """,
     unsafe_allow_html=True,
