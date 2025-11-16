@@ -500,7 +500,7 @@ for col, year in zip(cols, TARGET_YEARS):
                 <div class="metric-value">{value_microC:.2f} <span style="font-size: 1.5rem;">μ°C</span></div>
                 <div class="metric-label">Temperature avoided by {year}</div>
                 <div style="font-size: 0.85rem; color: #616161; margin-top: 0.5rem;">
-                    ({value_C:.6f} °C)
+                    ({value_C:.8f} °C)
                 </div>
             </div>
             """,
