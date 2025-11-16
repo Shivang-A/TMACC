@@ -140,7 +140,7 @@ AGTP_CH4_POINTS = {
 INDIRECT_FACTOR_CH4 = 1.75
 
 # Climate inertia parameters
-INCLUDE_CLIMATE_INERTIA = False
+INCLUDE_CLIMATE_INERTIA = True
 TAU_CLIMATE = 10.0  # years
 
 # Darker pastel color palette
