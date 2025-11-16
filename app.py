@@ -126,22 +126,80 @@ st.markdown(
 TARGET_YEARS = [2040, 2047]  # Only two meaningful years
 BAU_SCENARIO_NAME = "BAU"
 
-# AGTP kernel for CH4 (degC per kg emitted) at different lags
-AGTP_CH4_POINTS = {
-    1:   1.4488e-14,
-    5:   4.8850e-14,
-    10:  5.9969e-14,
-    20:  4.6009e-14,
-    50:  8.6570e-15,
-    100: 2.3292e-15,
-}
+# --- Analytic AGTP kernel for CH4 (degC per kg emitted) ----------------------
+# Implemented from the impulse-response formulation you tested:
+# AGTP_CH4(t) = A_CH4 * sum_j [ (alpha * c_j / (alpha - d_j)) *
+#                               (exp(-t/alpha) - exp(-t/d_j)) ]
+#
+# Source: IPCC-style simple climate model impulse-response parameters
+# (e.g. Joos et al. 2013; IPCC WGI AR5/AR6), adapted for CH4.
+# NOTE: Units here are K (≈°C) per kg CH4.
 
-# Indirect effects: ozone, stratospheric H2O, CO2 from oxidation
-INDIRECT_FACTOR_CH4 = 1.75
+A_CH4 = 2.1e-13      # W m^-2 per kg CH4
+alpha_CH4 = 12.4     # CH4 atmospheric lifetime (years)
+
+# Climate response parameters (two-time-constant form)
+c = np.array([0.631, 0.429])
+d = np.array([8.4, 409.5])
+
+def AGTP_CH4(t_years):
+    """
+    Absolute Global Temperature-change Potential for CH4 at time t (years)
+    in degC per kg CH4 emitted at t = 0.
+
+    Implements the two-time-constant impulse-response form:
+        AGTP_CH4(t) = A_CH4 * sum_j [
+            (alpha * c_j / (alpha - d_j)) *
+            (exp(-t/alpha) - exp(-t/d_j))
+        ]
+
+    t_years can be a scalar or array-like.
+    """
+    t = np.array(t_years, dtype=float)
+    terms = []
+    for cj, dj in zip(c, d):
+        factor = (alpha_CH4 * cj) / (alpha_CH4 - dj)
+        kernel = np.exp(-t / alpha_CH4) - np.exp(-t / dj)
+        terms.append(factor * kernel)
+    return A_CH4 * np.sum(terms, axis=0)
+
+def interp_agtp_ch4(lag_years: float) -> float:
+    """
+    Wrapper to compute AGTP_CH4 for a scalar lag, handling same-year emissions.
+
+    For lag <= 0 we approximate the effect as the mid-year value (t = 0.5 yr),
+    i.e. emissions reduced at the start of the year have ~half-year to act.
+    """
+    if lag_years <= 0:
+        t_eff = 0.5
+    else:
+        t_eff = float(lag_years)
+    return float(AGTP_CH4(t_eff))
+
+# -------------------- Indirect effects & climate inertia ---------------------
+
+# Indirect effects: ozone, stratospheric H2O, CO2 from oxidation, etc.
+# TODO: Replace 1.4 with a literature-consistent uplift factor (e.g. back out
+# from IPCC AR6 CH4 GWP including indirect and feedback effects).
+INDIRECT_FACTOR_CH4 = 1.4
 
 # Climate inertia parameters
-INCLUDE_CLIMATE_INERTIA = True
-TAU_CLIMATE = 10.0  # years
+# NOTE: AGTP_CH4 already includes climate response, so we disable any extra
+# climate_inertia_factor to avoid double-counting.
+INCLUDE_CLIMATE_INERTIA = False
+TAU_CLIMATE = 10.0  # years (kept for potential future experimentation)
+
+def climate_inertia_factor(lag_years: float, tau: float) -> float:
+    """
+    Optional extra climate response factor: 1 - exp(-lag / tau).
+
+    Currently not applied (INCLUDE_CLIMATE_INERTIA = False) because the AGTP
+    kernel already includes climate response via the IPCC impulse-response
+    parameters.
+    """
+    if lag_years <= 0:
+        return 0.0
+    return 1.0 - np.exp(-lag_years / tau)
 
 # Darker pastel color palette
 PASTEL_COLORS = {
@@ -152,33 +210,6 @@ PASTEL_COLORS = {
     "Agriculture": "#ba68c8",  # Darker light purple
     "Residential": "#a1887f",  # Darker light brown
 }
-
-def interp_agtp_ch4(lag_years: float) -> float:
-    """
-    Piecewise-linear interpolation of AGTP_CH4_POINTS for any lag >= 0.
-    Returns degC per kg CH4 emitted.
-    """
-    if lag_years <= 0:
-        return AGTP_CH4_POINTS[1]
-    xs = sorted(AGTP_CH4_POINTS.keys())
-    if lag_years >= xs[-1]:
-        return AGTP_CH4_POINTS[xs[-1]]
-    for i in range(len(xs) - 1):
-        x0, x1 = xs[i], xs[i + 1]
-        if x0 <= lag_years <= x1:
-            y0, y1 = AGTP_CH4_POINTS[x0], AGTP_CH4_POINTS[x1]
-            w = (lag_years - x0) / (x1 - x0)
-            return y0 * (1 - w) + y1 * w
-    return AGTP_CH4_POINTS[1]
-
-def climate_inertia_factor(lag_years: float, tau: float) -> float:
-    """
-    Climate response factor: 1 - exp(-lag / tau).
-    Represents the gradual response of the climate system.
-    """
-    if lag_years <= 0:
-        return 0.0
-    return 1.0 - np.exp(-lag_years / tau)
 
 # --------------------------------------------------
 # 4) STATE CONFIG
