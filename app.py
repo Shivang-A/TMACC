@@ -128,12 +128,12 @@ BAU_SCENARIO_NAME = "BAU"
 
 # AGTP kernel for CH4 (degC per kg emitted) at different lags
 AGTP_CH4_POINTS = {
-    1:   1.75e-15,
-    5:   1.51e-15,
-    10:  0.98e-15,
-    20:  0.45e-15,
-    50:  0.15e-15,
-    100: 0.04e-15,
+    1:   1.4488e-14,
+    5:   4.8850e-14,
+    10:  5.9969e-14,
+    20:  4.6009e-14,
+    50:  8.6570e-15,
+    100: 2.3292e-15,
 }
 
 # Indirect effects: ozone, stratospheric H2O, CO2 from oxidation
