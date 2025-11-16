@@ -126,22 +126,80 @@ st.markdown(
 TARGET_YEARS = [2040, 2047]  # Only two meaningful years
 BAU_SCENARIO_NAME = "BAU"
 
-# AGTP kernel for CH4 (degC per kg emitted) at different lags
-AGTP_CH4_POINTS = {
-    1:   1.75e-15,
-    5:   1.51e-15,
-    10:  0.98e-15,
-    20:  0.45e-15,
-    50:  0.15e-15,
-    100: 0.04e-15,
-}
+# --- Analytic AGTP kernel for CH4 (degC per kg emitted) ----------------------
+# Implemented from the impulse-response formulation you tested:
+# AGTP_CH4(t) = A_CH4 * sum_j [ (alpha * c_j / (alpha - d_j)) *
+#                               (exp(-t/alpha) - exp(-t/d_j)) ]
+#
+# Source: IPCC-style simple climate model impulse-response parameters
+# (e.g. Joos et al. 2013; IPCC WGI AR5/AR6), adapted for CH4.
+# NOTE: Units here are K (≈°C) per kg CH4.
 
-# Indirect effects: ozone, stratospheric H2O, CO2 from oxidation
-INDIRECT_FACTOR_CH4 = 1.75
+A_CH4 = 2.1e-13      # W m^-2 per kg CH4
+alpha_CH4 = 12.4     # CH4 atmospheric lifetime (years)
+
+# Climate response parameters (two-time-constant form)
+c = np.array([0.631, 0.429])
+d = np.array([8.4, 409.5])
+
+def AGTP_CH4(t_years):
+    """
+    Absolute Global Temperature-change Potential for CH4 at time t (years)
+    in degC per kg CH4 emitted at t = 0.
+
+    Implements the two-time-constant impulse-response form:
+        AGTP_CH4(t) = A_CH4 * sum_j [
+            (alpha * c_j / (alpha - d_j)) *
+            (exp(-t/alpha) - exp(-t/d_j))
+        ]
+
+    t_years can be a scalar or array-like.
+    """
+    t = np.array(t_years, dtype=float)
+    terms = []
+    for cj, dj in zip(c, d):
+        factor = (alpha_CH4 * cj) / (alpha_CH4 - dj)
+        kernel = np.exp(-t / alpha_CH4) - np.exp(-t / dj)
+        terms.append(factor * kernel)
+    return A_CH4 * np.sum(terms, axis=0)
+
+def interp_agtp_ch4(lag_years: float) -> float:
+    """
+    Wrapper to compute AGTP_CH4 for a scalar lag, handling same-year emissions.
+
+    For lag <= 0 we approximate the effect as the mid-year value (t = 0.5 yr),
+    i.e. emissions reduced at the start of the year have ~half-year to act.
+    """
+    if lag_years <= 0:
+        t_eff = 0.5
+    else:
+        t_eff = float(lag_years)
+    return float(AGTP_CH4(t_eff))
+
+# -------------------- Indirect effects & climate inertia ---------------------
+
+# Indirect effects: ozone, stratospheric H2O, CO2 from oxidation, etc.
+# TODO: Replace 1.4 with a literature-consistent uplift factor (e.g. back out
+# from IPCC AR6 CH4 GWP including indirect and feedback effects).
+INDIRECT_FACTOR_CH4 = 1.4
 
 # Climate inertia parameters
-INCLUDE_CLIMATE_INERTIA = True
-TAU_CLIMATE = 10.0  # years
+# NOTE: AGTP_CH4 already includes climate response, so we disable any extra
+# climate_inertia_factor to avoid double-counting.
+INCLUDE_CLIMATE_INERTIA = False
+TAU_CLIMATE = 10.0  # years (kept for potential future experimentation)
+
+def climate_inertia_factor(lag_years: float, tau: float) -> float:
+    """
+    Optional extra climate response factor: 1 - exp(-lag / tau).
+
+    Currently not applied (INCLUDE_CLIMATE_INERTIA = False) because the AGTP
+    kernel already includes climate response via the IPCC impulse-response
+    parameters.
+    """
+    if lag_years <= 0:
+        return 0.0
+    return 1.0 - np.exp(-lag_years / tau)
 
 # Darker pastel color palette
 PASTEL_COLORS = {
@@ -152,33 +210,6 @@ PASTEL_COLORS = {
     "Agriculture": "#ba68c8",  # Darker light purple
     "Residential": "#a1887f",  # Darker light brown
 }
-
-def interp_agtp_ch4(lag_years: float) -> float:
-    """
-    Piecewise-linear interpolation of AGTP_CH4_POINTS for any lag >= 0.
-    Returns degC per kg CH4 emitted.
-    """
-    if lag_years <= 0:
-        return AGTP_CH4_POINTS[1]
-    xs = sorted(AGTP_CH4_POINTS.keys())
-    if lag_years >= xs[-1]:
-        return AGTP_CH4_POINTS[xs[-1]]
-    for i in range(len(xs) - 1):
-        x0, x1 = xs[i], xs[i + 1]
-        if x0 <= lag_years <= x1:
-            y0, y1 = AGTP_CH4_POINTS[x0], AGTP_CH4_POINTS[x1]
-            w = (lag_years - x0) / (x1 - x0)
-            return y0 * (1 - w) + y1 * w
-    return AGTP_CH4_POINTS[1]
-
-def climate_inertia_factor(lag_years: float, tau: float) -> float:
-    """
-    Climate response factor: 1 - exp(-lag / tau).
-    Represents the gradual response of the climate system.
-    """
-    if lag_years <= 0:
-        return 0.0
-    return 1.0 - np.exp(-lag_years / tau)
 
 # --------------------------------------------------
 # 4) STATE CONFIG
@@ -369,17 +400,29 @@ with st.sidebar:
     if 'year_choice' not in st.session_state:
         st.session_state.year_choice = 2047
     
-    # Radio button for single-click year selection
-    year_choice = st.radio(
-        "Select year:",
-        options=TARGET_YEARS,
-        index=TARGET_YEARS.index(st.session_state.year_choice),
-        horizontal=True,
-        label_visibility="collapsed"
-    )
+    # Create button columns for year selection
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button(
+            "2040",
+            key="btn_2040",
+            type="primary" if st.session_state.year_choice == 2040 else "secondary",
+            use_container_width=True
+        ):
+            st.session_state.year_choice = 2040
+            st.rerun()
     
-    # Update session state
-    st.session_state.year_choice = year_choice
+    with col2:
+        if st.button(
+            "2047",
+            key="btn_2047",
+            type="primary" if st.session_state.year_choice == 2047 else "secondary",
+            use_container_width=True
+        ):
+            st.session_state.year_choice = 2047
+            st.rerun()
+    
+    year_choice = st.session_state.year_choice
     
     st.markdown("---")
     st.markdown("### 📊 About")
@@ -410,31 +453,14 @@ st.markdown(
     """
 )
 
-# Unit explanation box
 st.markdown(
     """
     <div class="unit-explanation">
-        <strong>📏 Understanding Temperature Units</strong><br><br>
-        
-        <strong>Temperature scale:</strong> Degrees Celsius (°C)<br>
-        <strong>Value scale:</strong> We use two units depending on magnitude:<br>
-        
-        • <strong>m°C (milli-degrees Celsius)</strong> = 10<sup>-3</sup> °C = 0.001 °C<br>
-        &nbsp;&nbsp;&nbsp;Used for larger impacts (≥ 1 m°C)<br><br>
-        
-        • <strong>μ°C (micro-degrees Celsius)</strong> = 10<sup>-6</sup> °C = 0.000001 °C<br>
-        &nbsp;&nbsp;&nbsp;Used for smaller impacts (< 1 m°C)<br>
-        &nbsp;&nbsp;&nbsp;1000 μ°C = 1 m°C<br><br>
-        
-        <strong>Examples:</strong><br>
-        • 450.25 μ°C = 0.45025 m°C = 0.00045025 °C<br>
-        • 1200.50 μ°C = 1.20050 m°C = 0.00120050 °C<br><br>
-        
-        <strong>Context:</strong> While these values may seem small, they represent significant impacts when considering:<br>
-        • This is from <em>one state</em> in India, not the entire country or world<br>
-        • Global warming has increased by ~1.5°C since pre-industrial times<br>
-        • Every fraction of a degree matters for climate stability<br>
-        • Cumulative effects from all regions worldwide add up to substantial climate impacts
+        <strong>📏 Understanding Temperature Units</strong><br>
+        <strong>μ°C (micro-degrees Celsius)</strong> = 10<sup>-6</sup> °C = 0.000001 °C<br>
+        For example: <strong>450.25 μ°C = 0.00045025 °C</strong><br>
+        While these values may seem small, they represent significant global climate impacts when considering 
+        the cumulative effect of methane from multiple sources worldwide.
     </div>
     """,
     unsafe_allow_html=True,
@@ -505,7 +531,7 @@ for col, year in zip(cols, TARGET_YEARS):
                 <div class="metric-value">{value_microC:.2f} <span style="font-size: 1.5rem;">μ°C</span></div>
                 <div class="metric-label">Temperature avoided by {year}</div>
                 <div style="font-size: 0.85rem; color: #616161; margin-top: 0.5rem;">
-                    ({value_C:.6f} °C)
+                    ({value_C:.8f} °C)
                 </div>
             </div>
             """,
@@ -562,8 +588,7 @@ with col1:
             marker_color=g1_colors,
             text=text_labels,
             textposition='outside',
-            hovertemplate='<b>%{x}</b><br>%{y:.2f} μ°C<br>(%{customdata:.6f} °C)<extra></extra>',
-            customdata=[v/1e6 for v in g1_vals]
+            hovertemplate='<b>%{x}</b><br>%{y:.2f} μ°C<extra></extra>',
         )
     ])
     
@@ -608,8 +633,7 @@ with col2:
             name=sector_name,
             line=dict(width=2.5, color=get_sector_color(sector_name)),
             marker=dict(size=8),
-            hovertemplate=f'<b>{sector_name}</b><br>Year: %{{x}}<br>%{{y:.2f}} μ°C<br>(%{{customdata:.6f}} °C)<extra></extra>',
-            customdata=[v/1e6 for v in series]
+            hovertemplate=f'<b>{sector_name}</b><br>Year: %{{x}}<br>%{{y:.2f}} μ°C<extra></extra>'
         ))
     
     # Add total trace
@@ -620,8 +644,7 @@ with col2:
         name='Total',
         line=dict(width=3.5, color='#1a1a1a', dash='dash'),
         marker=dict(size=10, symbol='diamond'),
-        hovertemplate='<b>Total MAS</b><br>Year: %{x}<br>%{y:.2f} μ°C<br>(%{customdata:.6f} °C)<extra></extra>',
-        customdata=[v/1e6 for v in mas_total_time]
+        hovertemplate='<b>Total MAS</b><br>Year: %{x}<br>%{y:.2f} μ°C<extra></extra>'
     ))
     
     fig_g6.update_layout(
@@ -700,8 +723,6 @@ with tab1:
             for scen in scen_list
         ]
         
-        customdata = [[v/1e6] for v in vals]
-        
         # Smart text labels: only show for meaningful values
         text_labels = []
         for v in vals:
@@ -720,8 +741,7 @@ with tab1:
                 showlegend=False,
                 text=text_labels,
                 textposition='outside',
-                hovertemplate='<b>%{x}</b><br>%{y:.2f} μ°C<br>(%{customdata[0]:.6f} °C)<extra></extra>',
-                customdata=customdata
+                hovertemplate='<b>%{x}</b><br>%{y:.2f} μ°C<extra></extra>'
             ),
             row=row,
             col=col
@@ -768,8 +788,6 @@ with tab2:
             df_s = df_s.sort_values("TargetYear")
             is_mas = scen in sector_max_alts[sector_name]
             
-            customdata = [[v/1e6] for v in df_s["DeltaT_microC"].values]
-            
             fig_g4.add_trace(
                 go.Scatter(
                     x=df_s["TargetYear"],
@@ -780,8 +798,7 @@ with tab2:
                     opacity=1.0 if is_mas else 0.6,
                     showlegend=(idx == 0),
                     legendgroup=scen,
-                    hovertemplate=f'<b>{scen}</b><br>Year: %{{x}}<br>%{{y:.2f}} μ°C<br>(%{{customdata[0]:.6f}} °C)<extra></extra>',
-                    customdata=customdata
+                    hovertemplate=f'<b>{scen}</b><br>Year: %{{x}}<br>%{{y:.2f}} μ°C<extra></extra>'
                 ),
                 row=row,
                 col=col
@@ -942,7 +959,7 @@ st.markdown(
     <div class="footer">
         © 2025 Institute for Governance & Sustainable Development (IGSD) | 
         TMACC-inspired Temperature Impact Analysis<br>
-        <em>Dashboard powered by Streamlit & Plotly</em>
+        <em></em>
     </div>
     """,
     unsafe_allow_html=True
