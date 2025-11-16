@@ -928,7 +928,7 @@ st.markdown(
     <div class="footer">
         © 2025 Institute for Governance & Sustainable Development (IGSD) | 
         TMACC-inspired Temperature Impact Analysis<br>
-        <em>Dashboard powered by Streamlit & Plotly</em>
+        <em></em>
     </div>
     """,
     unsafe_allow_html=True
