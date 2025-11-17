@@ -179,9 +179,8 @@ def interp_agtp_ch4(lag_years: float) -> float:
 # -------------------- Indirect effects & climate inertia ---------------------
 
 # Indirect effects: ozone, stratospheric H2O, CO2 from oxidation, etc.
-# TODO: Replace 1.4 with a literature-consistent uplift factor (e.g. back out
-# from IPCC AR6 CH4 GWP including indirect and feedback effects).
-INDIRECT_FACTOR_CH4 = 1.4
+# This is just the *default*; actual value is controlled via a sidebar slider.
+INDIRECT_FACTOR_CH4 = 1.4  # TODO: pin down from literature
 
 # Climate inertia parameters
 # NOTE: AGTP_CH4 already includes climate response, so we disable any extra
@@ -288,7 +287,11 @@ def build_deltaE(df: pd.DataFrame) -> pd.DataFrame:
     return merged[["Sector", "Year", "Scenario", "Mitigation Strategy", "delta_CH4_kT"]].copy()
 
 @st.cache_data
-def compute_deltaT_for_year(deltaE_df: pd.DataFrame, target_year: int) -> pd.DataFrame:
+def compute_deltaT_for_year(
+    deltaE_df: pd.DataFrame,
+    target_year: int,
+    indirect_factor: float,
+) -> pd.DataFrame:
     """
     Compute temperature impact (ΔT) for a target year using AGTP approach.
     
@@ -309,12 +312,12 @@ def compute_deltaT_for_year(deltaE_df: pd.DataFrame, target_year: int) -> pd.Dat
                     continue
 
                 lag = target_year - year
-                
-                # AGTP kernel for this lag
+
+                # AGTP kernel for this lag (degC per kg)
                 kernel = interp_agtp_ch4(lag)
-                
-                # Apply indirect effects and climate inertia
-                factor = INDIRECT_FACTOR_CH4
+
+                # Apply indirect effects and (optional) extra climate inertia
+                factor = indirect_factor
                 if INCLUDE_CLIMATE_INERTIA:
                     factor *= climate_inertia_factor(lag, TAU_CLIMATE)
 
@@ -330,6 +333,16 @@ def compute_deltaT_for_year(deltaE_df: pd.DataFrame, target_year: int) -> pd.Dat
             })
 
     result = pd.DataFrame(rows)
+
+    # Add total across all sectors
+    totals = (
+        result.groupby(["Scenario", "TargetYear"])
+        .agg(DeltaT_degC=("DeltaT_degC", "sum"))
+        .reset_index()
+    )
+    totals["Sector"] = "ALL"
+
+    return pd.concat([result, totals], ignore_index=True)
 
     # Add total across all sectors
     totals = (
@@ -423,6 +436,15 @@ with st.sidebar:
             st.rerun()
     
     year_choice = st.session_state.year_choice
+    # Indirect effects multiplier slider (1.0–2.0, default 1.4)
+    indirect_factor = st.slider(
+        "Indirect effects multiplier for CH₄",
+        min_value=1.0,
+        max_value=2.0,
+        value=INDIRECT_FACTOR_CH4_DEFAULT,
+        step=0.05,
+        help="Uplift factor for ozone, stratospheric H₂O, CO₂-from-oxidation, etc."
+    )
     
     st.markdown("---")
     st.markdown("### 📊 About")
@@ -491,13 +513,14 @@ with st.spinner("Loading and processing emissions data..."):
     # Extract mitigation strategies for later use
     mitigation_strategies = extract_mitigation_strategies(df_emis)
     
-    # Compute ΔT for all target years
+    # Compute ΔT for all target years using the chosen indirect factor
     all_results = []
     for y in TARGET_YEARS:
-        res_y = compute_deltaT_for_year(deltaE, y)
+        res_y = compute_deltaT_for_year(deltaE, y, indirect_factor)
         all_results.append(res_y)
     
     results = pd.concat(all_results, ignore_index=True)
+   
     # Convert to micro-degrees Celsius for display
     results["DeltaT_microC"] = results["DeltaT_degC"] * 1e6
 
