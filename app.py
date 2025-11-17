@@ -130,6 +130,7 @@ BAU_SCENARIO_NAME = "BAU"
 # Implemented from the impulse-response formulation you tested:
 # AGTP_CH4(t) = A_CH4 * sum_j [ (alpha * c_j / (alpha - d_j)) *
 #                               (exp(-t/alpha) - exp(-t/d_j)) ]
+# Taken from: https://www.mdpi.com/2072-4292/11/5/538
 #
 # Source: IPCC-style simple climate model impulse-response parameters
 # (e.g. Joos et al. 2013; IPCC WGI AR5/AR6), adapted for CH4.
