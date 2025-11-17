@@ -441,7 +441,7 @@ with st.sidebar:
         "Indirect effects multiplier for CH₄",
         min_value=1.0,
         max_value=2.0,
-        value=INDIRECT_FACTOR_CH4_DEFAULT,
+        value=INDIRECT_FACTOR_CH4,
         step=0.05,
         help="Uplift factor for ozone, stratospheric H₂O, CO₂-from-oxidation, etc."
     )
